@@ -18,8 +18,6 @@ A lightweight, browser-based bookmarks manager for importing, organizing, and ex
 
 Browser bookmark managers can make it inconvenient to export only a specific folder or a handful of bookmarks. This tool provides a simple **Export a selection** workflow.
 
-Instead of having to drag an item all the way down to the selection area, every folder and bookmark has a **📤➕ Add to staging area** button. Select the items you want, then export them as a separate bookmarks file.
-
 ## Usage
 
 1. Open the HTML file in a browser.
