@@ -111,16 +111,26 @@
   }
   .rootdrop.drag-over { border-color: var(--folder); background: var(--folder-bg); color: var(--folder); }
   .stats { color: var(--muted); font-size: 12px; margin-top: 20px; }
-  .selectPanel { margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--border); }
-  .selectPanel h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
-  .selectPanel .sub { margin-bottom: 12px; }
-  .dropbox {
-    padding: 22px; border: 1px dashed var(--border); border-radius: 8px;
-    color: var(--muted); font-size: 13px; text-align: center;
+  .selectPanel {
+    position: sticky; bottom: 12px; z-index: 10; margin-top: 28px; padding: 12px 14px;
+    border: 1px solid var(--border); border-radius: 10px; background: var(--panel);
+    box-shadow: 0 4px 18px rgba(0,0,0,.10);
   }
+  .selectionHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .selectPanel h2 { font-size: 15px; font-weight: 600; margin: 0 0 2px; }
+  .selectPanel .sub { margin: 0; font-size: 12px; }
+  .selectionHeader .toolbar { flex: none; }
+  .dropbox { margin-top: 10px; padding: 9px 12px; border: 1px dashed var(--border); border-radius: 7px; color: var(--muted); font-size: 12px; text-align: center; }
   .dropbox.drag-over { border-color: var(--folder); background: var(--folder-bg); color: var(--folder); }
-  #selectionTree { margin-top: 10px; }
+  #selectionPreview { max-height: 280px; overflow: auto; }
+  #selectionTree { margin-top: 8px; }
   #selectionTree:empty { display: none; }
+  #selectionPreview.collapsed { display: none; }
+  @media (max-width: 620px) {
+    .selectionHeader { align-items: stretch; flex-direction: column; }
+    .selectionHeader .toolbar { width: 100%; }
+    .selectionHeader .toolbar button { flex: 1; }
+  }
   button:disabled { opacity: 0.45; cursor: default; }
   button:disabled:hover { background: var(--panel); }
   @media (max-width: 480px) {
@@ -146,14 +156,19 @@
   <div class="stats" id="stats"></div>
 
   <section class="selectPanel">
-    <h2>Export a selection <span id="selectionCount"></span></h2>
-    <p class="sub">Drag any folder or bookmark here, or use the <strong>＋</strong> action on any item above, to build a smaller file — your main list isn't changed.</p>
-    <div id="selectionDrop" class="dropbox">Drop folders or bookmarks here</div>
-    <ul class="tree" id="selectionTree"></ul>
-    <div class="toolbar" style="margin-top:10px;">
-      <button id="exportSelectionBtn" class="primary" disabled>Export selection</button>
-      <button id="clearSelectionBtn">Clear</button>
+    <div class="selectionHeader">
+      <div>
+        <h2>📤 Export a selection <span id="selectionCount"></span></h2>
+        <p class="sub">Add folders or bookmarks with 📤＋, or drag them here.</p>
+      </div>
+      <div class="toolbar">
+        <button id="reviewSelectionBtn" disabled>Review</button>
+        <button id="exportSelectionBtn" class="primary" disabled>Export selection</button>
+        <button id="clearSelectionBtn" disabled>Clear</button>
+      </div>
     </div>
+    <div id="selectionDrop" class="dropbox">Drop folders or bookmarks here</div>
+    <div id="selectionPreview"><ul class="tree" id="selectionTree"></ul></div>
   </section>
 </div>
 
@@ -470,7 +485,10 @@
   const selectionDrop = document.getElementById('selectionDrop');
   const selectionTreeEl = document.getElementById('selectionTree');
   const exportSelectionBtn = document.getElementById('exportSelectionBtn');
+  const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+  const reviewSelectionBtn = document.getElementById('reviewSelectionBtn');
   const selectionCountEl = document.getElementById('selectionCount');
+  const selectionPreview = document.getElementById('selectionPreview');
 
   function addToSelection(id) {
     const node = findById(root, id);
@@ -482,8 +500,12 @@
   function renderSelection() {
     selectionTreeEl.innerHTML = '';
     selectionRoot.children.forEach(n => selectionTreeEl.appendChild(renderSelRow(n)));
-    exportSelectionBtn.disabled = !selectionRoot.children.length;
-    selectionCountEl.textContent = selectionRoot.children.length ? '(' + countStats(selectionRoot).links + ' bookmark(s))' : '';
+    const hasSelection = selectionRoot.children.length > 0;
+    exportSelectionBtn.disabled = !hasSelection;
+    clearSelectionBtn.disabled = !hasSelection;
+    reviewSelectionBtn.disabled = !hasSelection;
+    const counts = countStats(selectionRoot);
+    selectionCountEl.textContent = hasSelection ? '(' + counts.links + ' bookmark(s), ' + counts.folders + ' folder(s))' : '(nothing selected)';
   }
 
   function renderSelRow(node) {
@@ -538,8 +560,14 @@
     if (!selectionRoot.children.length) return;
     exportTree(selectionRoot, 'bookmarks-selection.html');
   });
-  document.getElementById('clearSelectionBtn').addEventListener('click', () => {
+  reviewSelectionBtn.addEventListener('click', () => {
+    selectionPreview.classList.toggle('collapsed');
+    reviewSelectionBtn.textContent = selectionPreview.classList.contains('collapsed') ? 'Review' : 'Hide';
+  });
+  clearSelectionBtn.addEventListener('click', () => {
     selectionRoot.children = [];
+    selectionPreview.classList.remove('collapsed');
+    reviewSelectionBtn.textContent = 'Review';
     renderSelection();
   });
   document.getElementById('fileInput').addEventListener('change', e => {
