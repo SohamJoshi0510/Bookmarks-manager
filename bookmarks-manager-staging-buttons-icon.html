@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bookmarks Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F5F6F3;
+    --panel: #FFFFFF;
+    --text: #22201C;
+    --muted: #6E6A62;
+    --border: #DDD9D0;
+    --folder: #2F5233;
+    --folder-bg: #EAF0EA;
+    --link: #1D4E89;
+    --link-bg: #EAF1F8;
+    --danger: #A23B2E;
+    --hover: #F0EFEA;
+    --focus: #1D4E89;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17181A; --panel: #1F2123; --text: #E9E7E1; --muted: #9A968C;
+      --border: #35373A; --folder: #7FB88F; --folder-bg: #1E2A20;
+      --link: #7FADD9; --link-bg: #1A2733; --danger: #D98A7C; --hover: #26282B;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17181A; --panel: #1F2123; --text: #E9E7E1; --muted: #9A968C;
+    --border: #35373A; --folder: #7FB88F; --folder-bg: #1E2A20;
+    --link: #7FADD9; --link-bg: #1A2733; --danger: #D98A7C; --hover: #26282B;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); height: 100%; }
+  body {
+    height: 100%; margin: 0; background: var(--bg); color: var(--text);
+    font-family: 'IBM Plex Sans', -apple-system, sans-serif; font-size: 15px;
+  }
+  * { box-sizing: border-box; }
+  .shell { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  header.top {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+    background: var(--bg); padding: 8px 0 16px; border-bottom: 1px solid var(--border);
+    margin-bottom: 18px;
+  }
+  h1 { font-size: 19px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+  button, .filebtn {
+    font-family: inherit; font-size: 13px; font-weight: 500; color: var(--text);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    padding: 7px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  }
+  button:hover, .filebtn:hover { background: var(--hover); }
+  button:focus-visible, .filebtn:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--focus); outline-offset: 2px;
+  }
+  button.primary { background: var(--folder); color: #fff; border-color: var(--folder); }
+  button.primary:hover { filter: brightness(1.08); }
+  input[type=file] { display: none; }
+  .empty {
+    border: 1px dashed var(--border); border-radius: 10px; padding: 40px 20px;
+    text-align: center; color: var(--muted); margin-top: 24px;
+  }
+  .empty strong { color: var(--text); display: block; margin-bottom: 6px; font-size: 15px; }
+  ul.tree { list-style: none; margin: 0; padding: 0; }
+  ul.tree ul.tree { margin-left: 18px; padding-left: 12px; border-left: 1px solid var(--border); }
+  .row {
+    display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 2px;
+    border-radius: 6px; cursor: grab; border: 1px solid transparent;
+  }
+  .row:hover { background: var(--hover); }
+  .row.drag-over { border-color: var(--folder); background: var(--folder-bg); }
+  .row.dragging { opacity: 0.4; }
+  .toggle {
+    width: 18px; height: 18px; flex: none; border: none; background: none; padding: 0;
+    color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+  }
+  .toggle.hidden { visibility: hidden; }
+  .badge {
+    width: 8px; height: 8px; border-radius: 2px; flex: none;
+  }
+  .badge.folder { background: var(--folder); }
+  .badge.link { background: var(--link); }
+  .label { flex: 1; min-width: 0; }
+  .label .title { font-size: 14px; }
+  .label .url {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;
+  }
+  .row-actions { display: none; gap: 2px; flex: none; }
+  .row:hover .row-actions, .row:focus-within .row-actions { display: flex; }
+  .iconbtn {
+    width: 24px; height: 24px; border: none; background: none; border-radius: 4px;
+    color: var(--muted); cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center;
+  }
+  .iconbtn:hover { background: var(--panel); color: var(--text); }
+  .iconbtn.stagebtn { color: var(--folder); font-weight: 600; }
+  .iconbtn.stagebtn:hover { background: var(--folder-bg); color: var(--folder); }
+  .iconbtn.del:hover { color: var(--danger); }
+  .rootdrop {
+    margin-top: 8px; padding: 14px; border: 1px dashed transparent; border-radius: 8px;
+    color: var(--muted); font-size: 12px; text-align: center;
+  }
+  .rootdrop.drag-over { border-color: var(--folder); background: var(--folder-bg); color: var(--folder); }
+  .stats { color: var(--muted); font-size: 12px; margin-top: 20px; }
+  .selectPanel { margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--border); }
+  .selectPanel h2 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .selectPanel .sub { margin-bottom: 12px; }
+  .dropbox {
+    padding: 22px; border: 1px dashed var(--border); border-radius: 8px;
+    color: var(--muted); font-size: 13px; text-align: center;
+  }
+  .dropbox.drag-over { border-color: var(--folder); background: var(--folder-bg); color: var(--folder); }
+  #selectionTree { margin-top: 10px; }
+  #selectionTree:empty { display: none; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  button:disabled:hover { background: var(--panel); }
+  @media (max-width: 480px) {
+    .label .url { max-width: 46vw; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <h1>Bookmarks Manager</h1>
+    <p class="sub">Import a Netscape bookmarks export, reorganize by dragging, then export the result.</p>
+    <div class="toolbar">
+      <label class="filebtn" for="fileInput">Import bookmarks.html</label>
+      <input id="fileInput" type="file" accept=".html,.htm">
+      <button id="addFolderRoot">+ Folder</button>
+      <button id="addLinkRoot">+ Bookmark</button>
+      <button id="exportBtn" class="primary">Export bookmarks.html</button>
+    </div>
+  </header>
+
+  <div id="treeWrap"></div>
+  <div class="stats" id="stats"></div>
+
+  <section class="selectPanel">
+    <h2>Export a selection <span id="selectionCount"></span></h2>
+    <p class="sub">Drag any folder or bookmark here, or use the <strong>＋</strong> action on any item above, to build a smaller file — your main list isn't changed.</p>
+    <div id="selectionDrop" class="dropbox">Drop folders or bookmarks here</div>
+    <ul class="tree" id="selectionTree"></ul>
+    <div class="toolbar" style="margin-top:10px;">
+      <button id="exportSelectionBtn" class="primary" disabled>Export selection</button>
+      <button id="clearSelectionBtn">Clear</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  let uidCounter = 0;
+  const uid = () => 'n' + (++uidCounter);
+
+  let root = { type: 'folder', title: 'Bookmarks', id: uid(), expanded: true, children: [] };
+
+  function decodeEntities(str) {
+    const ta = document.createElement('textarea');
+    ta.innerHTML = str;
+    return ta.value;
+  }
+  function esc(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function parseBookmarks(html) {
+    const clean = html.replace(/<p>/gi, '').replace(/<!--[\s\S]*?-->/g, '');
+    const tokenRe = /<DL>|<\/DL>|<DT>\s*<H3([^>]*)>([\s\S]*?)<\/H3>|<DT>\s*<A\s+([\s\S]*?)>([\s\S]*?)<\/A>/gi;
+    const newRoot = { type: 'folder', title: 'Bookmarks', id: uid(), expanded: true, children: [] };
+    const stack = [newRoot];
+    let pendingFolder = null;
+    let m;
+    while ((m = tokenRe.exec(clean))) {
+      const full = m[0], h3text = m[2], aattrs = m[3], atext = m[4];
+      if (full === '<DL>') {
+        if (pendingFolder) { stack.push(pendingFolder); pendingFolder = null; }
+        continue;
+      }
+      if (/^<\/DL>/i.test(full)) {
+        if (stack.length > 1) stack.pop();
+        continue;
+      }
+      if (h3text !== undefined) {
+        pendingFolder = null;
+        const folder = { type: 'folder', title: decodeEntities(h3text.trim()) || 'Untitled folder', id: uid(), expanded: true, children: [] };
+        stack[stack.length - 1].children.push(folder);
+        pendingFolder = folder;
+        continue;
+      }
+      if (atext !== undefined) {
+        pendingFolder = null;
+        const hrefMatch = /HREF="([^"]*)"/i.exec(aattrs || '');
+        const link = { type: 'link', title: decodeEntities(atext.trim()) || (hrefMatch ? hrefMatch[1] : 'Untitled'), href: hrefMatch ? decodeEntities(hrefMatch[1]) : '#', id: uid() };
+        stack[stack.length - 1].children.push(link);
+        continue;
+      }
+    }
+    return newRoot;
+  }
+
+  function serialize(node, depth) {
+    const indent = '    '.repeat(depth);
+    if (node.type === 'folder') {
+      let out = '';
+      if (depth > 0) out += indent + '<DT><H3>' + esc(node.title) + '</H3>\n';
+      out += indent + '<DL><p>\n';
+      node.children.forEach(c => out += serialize(c, depth + 1));
+      out += indent + '</DL><p>\n';
+      return out;
+    }
+    return indent + '<DT><A HREF="' + esc(node.href) + '">' + esc(node.title) + '</A>\n';
+  }
+
+  function exportTree(treeRoot, filename) {
+    const body = serialize(treeRoot, 0);
+    const full = '<!DOCTYPE NETSCAPE-Bookmark-file-1>\n<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">\n<TITLE>Bookmarks</TITLE>\n<H1>Bookmarks</H1>\n' + body;
+    const blob = new Blob([full], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  // ---- tree helpers ----
+  function findParent(node, target, parent) {
+    parent = parent || null;
+    if (node === target) return parent;
+    if (node.type === 'folder') {
+      for (const c of node.children) {
+        const r = findParent(c, target, node);
+        if (r) return r;
+      }
+    }
+    return null;
+  }
+  function isDescendant(ancestor, node) {
+    if (ancestor.type !== 'folder') return false;
+    for (const c of ancestor.children) {
+      if (c === node || isDescendant(c, node)) return true;
+    }
+    return false;
+  }
+  function removeNode(node, treeRoot) {
+    treeRoot = treeRoot || root;
+    const parent = findParent(treeRoot, node);
+    if (!parent) return;
+    parent.children = parent.children.filter(c => c !== node);
+  }
+  function cloneTree(node) {
+    if (node.type === 'folder') {
+      return { type: 'folder', title: node.title, id: uid(), expanded: true, children: node.children.map(cloneTree) };
+    }
+    return { type: 'link', title: node.title, href: node.href, id: uid() };
+  }
+  function findById(node, id) {
+    if (node.id === id) return node;
+    if (node.type === 'folder') {
+      for (const c of node.children) {
+        const r = findById(c, id);
+        if (r) return r;
+      }
+    }
+    return null;
+  }
+
+  // ---- rendering ----
+  const treeWrap = document.getElementById('treeWrap');
+  const statsEl = document.getElementById('stats');
+  let draggedId = null;
+
+  function countStats(node, s) {
+    s = s || { folders: 0, links: 0 };
+    if (node.type === 'folder') { s.folders++; node.children.forEach(c => countStats(c, s)); }
+    else s.links++;
+    return s;
+  }
+
+  function render() {
+    treeWrap.innerHTML = '';
+    if (!root.children.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.innerHTML = '<strong>Nothing here yet</strong>Import a bookmarks.html export, or use "+ Folder" / "+ Bookmark" to start fresh.';
+      treeWrap.appendChild(empty);
+    } else {
+      treeWrap.appendChild(renderList(root));
+    }
+    const dropzone = document.createElement('div');
+    dropzone.className = 'rootdrop';
+    dropzone.textContent = 'Drop here to move to the top level';
+    dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault(); dropzone.classList.remove('drag-over');
+      handleDrop(root, null);
+    });
+    treeWrap.appendChild(dropzone);
+
+    const s = countStats(root);
+    statsEl.textContent = s.folders - 1 >= 0 ? (s.folders - 1) + ' folder(s), ' + s.links + ' bookmark(s)' : '';
+  }
+
+  function renderList(folderNode) {
+    const ul = document.createElement('ul');
+    ul.className = 'tree';
+    folderNode.children.forEach(node => ul.appendChild(renderRow(node)));
+    return ul;
+  }
+
+  function handleDrop(targetNode, beforeNode) {
+    if (!draggedId) return;
+    const dragged = findById(root, draggedId);
+    if (!dragged) return;
+    if (dragged === targetNode) return;
+    if (dragged.type === 'folder' && isDescendant(dragged, targetNode)) return;
+    removeNode(dragged);
+    if (beforeNode) {
+      const parent = findParent(root, beforeNode) || root;
+      const idx = parent.children.indexOf(beforeNode);
+      parent.children.splice(idx === -1 ? parent.children.length : idx, 0, dragged);
+    } else {
+      targetNode.children.push(dragged);
+      targetNode.expanded = true;
+    }
+    draggedId = null;
+    render();
+  }
+
+  function renderRow(node) {
+    const li = document.createElement('li');
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.draggable = true;
+    row.dataset.id = node.id;
+
+    row.addEventListener('dragstart', e => {
+      draggedId = node.id;
+      row.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', node.id);
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', () => row.classList.remove('dragging'));
+    row.addEventListener('dragover', e => { e.preventDefault(); row.classList.add('drag-over'); });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+    row.addEventListener('drop', e => {
+      e.preventDefault(); e.stopPropagation();
+      row.classList.remove('drag-over');
+      if (node.type === 'folder') handleDrop(node, null);
+      else handleDrop(null, node);
+    });
+
+    const toggle = document.createElement('button');
+    toggle.className = 'toggle' + (node.type === 'folder' && node.children.length ? '' : ' hidden');
+    toggle.textContent = node.type === 'folder' ? (node.expanded ? '▾' : '▸') : '';
+    toggle.setAttribute('aria-label', 'Toggle folder');
+    toggle.addEventListener('click', () => { node.expanded = !node.expanded; render(); });
+    row.appendChild(toggle);
+
+    const badge = document.createElement('span');
+    badge.className = 'badge ' + node.type;
+    row.appendChild(badge);
+
+    const label = document.createElement('div');
+    label.className = 'label';
+    const titleEl = document.createElement('span');
+    titleEl.className = 'title';
+    titleEl.textContent = node.title;
+    label.appendChild(titleEl);
+    if (node.type === 'link') {
+      const urlEl = document.createElement('span');
+      urlEl.className = 'url';
+      urlEl.textContent = node.href;
+      label.appendChild(urlEl);
+    }
+    label.addEventListener('dblclick', () => renameNode(node));
+    row.appendChild(label);
+
+    const actions = document.createElement('div');
+    actions.className = 'row-actions';
+    if (node.type === 'folder') {
+      const addF = document.createElement('button');
+      addF.className = 'iconbtn'; addF.textContent = '📁+'; addF.title = 'Add subfolder';
+      addF.addEventListener('click', () => addFolder(node));
+      actions.appendChild(addF);
+      const addL = document.createElement('button');
+      addL.className = 'iconbtn'; addL.textContent = '🔖+'; addL.title = 'Add bookmark here';
+      addL.addEventListener('click', () => addLink(node));
+      actions.appendChild(addL);
+    }
+
+    // Add this item to the export staging area without needing to drag it.
+    const stage = document.createElement('button');
+    stage.className = 'iconbtn stagebtn';
+    stage.textContent = '📤＋';
+    stage.title = 'Add to staging area';
+    stage.setAttribute('aria-label', 'Add to staging area');
+    stage.addEventListener('click', e => {
+      e.stopPropagation();
+      addToSelection(node.id);
+    });
+    actions.appendChild(stage);
+
+    const ren = document.createElement('button');
+    ren.className = 'iconbtn'; ren.textContent = '✎'; ren.title = 'Rename';
+    ren.addEventListener('click', () => renameNode(node));
+    actions.appendChild(ren);
+    const del = document.createElement('button');
+    del.className = 'iconbtn del'; del.textContent = '✕'; del.title = 'Delete';
+    del.addEventListener('click', () => {
+      if (node.type === 'folder' && node.children.length && !confirm('Delete "' + node.title + '" and everything inside it?')) return;
+      removeNode(node); render();
+    });
+    actions.appendChild(del);
+    row.appendChild(actions);
+
+    li.appendChild(row);
+    if (node.type === 'folder' && node.expanded && node.children.length) {
+      li.appendChild(renderList(node));
+    }
+    return li;
+  }
+
+  function renameNode(node) {
+    const val = prompt('Title:', node.title);
+    if (val === null) return;
+    node.title = val.trim() || node.title;
+    if (node.type === 'link') {
+      const href = prompt('URL:', node.href);
+      if (href !== null && href.trim()) node.href = href.trim();
+    }
+    render();
+  }
+  function addFolder(target) {
+    const title = prompt('Folder name:', 'New folder');
+    if (title === null) return;
+    target.children.push({ type: 'folder', title: title.trim() || 'New folder', id: uid(), expanded: true, children: [] });
+    target.expanded = true;
+    render();
+  }
+  function addLink(target) {
+    const title = prompt('Bookmark title:', 'New bookmark');
+    if (title === null) return;
+    const href = prompt('URL:', 'https://');
+    if (href === null) return;
+    target.children.push({ type: 'link', title: title.trim() || href, href: href.trim(), id: uid() });
+    target.expanded = true;
+    render();
+  }
+
+  document.getElementById('addFolderRoot').addEventListener('click', () => addFolder(root));
+  document.getElementById('addLinkRoot').addEventListener('click', () => addLink(root));
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    if (!root.children.length && !confirm('There are no bookmarks yet. Export anyway?')) return;
+    exportTree(root, 'bookmarks.html');
+  });
+
+  // ---- export-a-selection panel ----
+  let selectionRoot = { type: 'folder', title: 'Selection', id: 'selroot', expanded: true, children: [] };
+  const selectionDrop = document.getElementById('selectionDrop');
+  const selectionTreeEl = document.getElementById('selectionTree');
+  const exportSelectionBtn = document.getElementById('exportSelectionBtn');
+  const selectionCountEl = document.getElementById('selectionCount');
+
+  function addToSelection(id) {
+    const node = findById(root, id);
+    if (!node) return;
+    selectionRoot.children.push(cloneTree(node));
+    renderSelection();
+  }
+
+  function renderSelection() {
+    selectionTreeEl.innerHTML = '';
+    selectionRoot.children.forEach(n => selectionTreeEl.appendChild(renderSelRow(n)));
+    exportSelectionBtn.disabled = !selectionRoot.children.length;
+    selectionCountEl.textContent = selectionRoot.children.length ? '(' + countStats(selectionRoot).links + ' bookmark(s))' : '';
+  }
+
+  function renderSelRow(node) {
+    const li = document.createElement('li');
+    const row = document.createElement('div');
+    row.className = 'row';
+    const toggle = document.createElement('button');
+    toggle.className = 'toggle' + (node.type === 'folder' && node.children.length ? '' : ' hidden');
+    toggle.textContent = node.type === 'folder' ? (node.expanded ? '▾' : '▸') : '';
+    toggle.addEventListener('click', () => { node.expanded = !node.expanded; renderSelection(); });
+    row.appendChild(toggle);
+    const badge = document.createElement('span');
+    badge.className = 'badge ' + node.type;
+    row.appendChild(badge);
+    const label = document.createElement('div');
+    label.className = 'label';
+    const titleEl = document.createElement('span');
+    titleEl.className = 'title'; titleEl.textContent = node.title;
+    label.appendChild(titleEl);
+    if (node.type === 'link') {
+      const urlEl = document.createElement('span');
+      urlEl.className = 'url'; urlEl.textContent = node.href;
+      label.appendChild(urlEl);
+    }
+    row.appendChild(label);
+    const actions = document.createElement('div');
+    actions.className = 'row-actions';
+    const del = document.createElement('button');
+    del.className = 'iconbtn del'; del.textContent = '✕'; del.title = 'Remove from selection';
+    del.addEventListener('click', () => { removeNode(node, selectionRoot); renderSelection(); });
+    actions.appendChild(del);
+    row.appendChild(actions);
+    li.appendChild(row);
+    if (node.type === 'folder' && node.expanded && node.children.length) {
+      const ul = document.createElement('ul');
+      ul.className = 'tree';
+      node.children.forEach(c => ul.appendChild(renderSelRow(c)));
+      li.appendChild(ul);
+    }
+    return li;
+  }
+
+  selectionDrop.addEventListener('dragover', e => { e.preventDefault(); selectionDrop.classList.add('drag-over'); });
+  selectionDrop.addEventListener('dragleave', () => selectionDrop.classList.remove('drag-over'));
+  selectionDrop.addEventListener('drop', e => {
+    e.preventDefault();
+    selectionDrop.classList.remove('drag-over');
+    if (draggedId) { addToSelection(draggedId); draggedId = null; }
+  });
+
+  exportSelectionBtn.addEventListener('click', () => {
+    if (!selectionRoot.children.length) return;
+    exportTree(selectionRoot, 'bookmarks-selection.html');
+  });
+  document.getElementById('clearSelectionBtn').addEventListener('click', () => {
+    selectionRoot.children = [];
+    renderSelection();
+  });
+  document.getElementById('fileInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        root = parseBookmarks(ev.target.result);
+        render();
+      } catch (err) {
+        alert('Could not read that file as a bookmarks export.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  render();
+  renderSelection();
+})();
+</script>
+</body>
+</html>
